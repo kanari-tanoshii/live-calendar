@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,interactive-widget=resizes-content">
+<title>ライブカレンダー</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+:root{
+  --accent:#4a9fd4;--accent-light:#e8f4ff;--dot:#5a9fd4;
+  --bg:#FBFAFF;--card:#F4F6FA;--border:#dde1ec;--border-light:#e8ebf4;
+  --text:#5a5d6b;--text2:#9295a5;--radius:10px;--radius-sm:6px;
+}
+/* テーマカラー */
+.theme-pink{--bg:#FFF5F7;--card:#FDF0F3;--border:#f0c8d0;--border-light:#fae0e6}
+.theme-mint{--bg:#F3FBF7;--card:#E9F7EF;--border:#b8dfc9;--border-light:#d4eede}
+.theme-lavender{--bg:#F5F3FF;--card:#EDEAFF;--border:#c8c0f0;--border-light:#ddd8f8}
+.theme-peach{--bg:#FFF8F3;--card:#FFF0E6;--border:#f0ccb0;--border-light:#fae0cc}
+.theme-sky{--bg:#F3F8FF;--card:#E8F2FF;--border:#b8d4f0;--border-light:#d4e8f8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px}
+.app{max-width:700px;margin:0 auto;padding:1rem .75rem 5rem;position:relative}
+h1{font-size:17px;font-weight:600;display:flex;align-items:center;gap:6px}
+.icon-btn{background:none;border:none;cursor:pointer;font-size:19px;color:var(--text2);padding:4px 7px;border-radius:var(--radius-sm)}
+.icon-btn:hover{background:var(--border-light);color:var(--text)}
+.palette-wrap{position:relative;display:flex;align-items:center;gap:5px}.theme-dd{display:none!important}
+.tswatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s}
+.tswatch.active{border-color:var(--text);transform:scale(1.2)}
+.add-btn{background:var(--dot);color:#fff;border:none;border-radius:var(--radius-sm);padding:5px 13px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;font-weight:500}
+.add-btn:hover{opacity:.85}
+.sync-indicator{font-size:10px;color:var(--text2);display:flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;background:var(--border-light);white-space:nowrap}
+.sync-indicator.syncing{color:#f59e0b}
+.sync-indicator.ok{color:#10b981}
+.sync-indicator.err{color:#ef4444}
+.tag-filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:0;align-items:center;padding:4px 0 4px}
+@media(min-width:541px){.tag-filter-bar{position:sticky;top:96px;z-index:58;background:var(--bg);margin-bottom:.9rem}}
+.tag-filter-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);transition:all .15s}
+.tag-filter-chip.all{background:var(--dot);color:#fff;border:1.5px solid var(--dot)}
+.tag-filter-chip.all.inactive{background:none;color:var(--dot);border:1.5px solid var(--dot)}
+.header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+.header-right{display:flex;align-items:center;gap:6px}
+.month-label-btn{background:none;border:none;cursor:pointer;font-size:15px;font-weight:700;color:var(--text);min-width:118px;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px 8px;border-radius:var(--radius-sm)}
+.mob-month-label-btn{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:15px;font-weight:700;color:var(--text);padding:4px 8px;border-radius:var(--radius-sm)}
+/* ─── 年月ピッカー ───
+   ラッパー：position:fixed で画面に固定浮き上がり表示
+   コンテンツを一切押し下げない */
+.picker-popup-wrap{position:fixed;z-index:310;display:none}
+/* デスクトップ専用ラッパーは picker-anchor 内に absolute */
+.picker-popup-wrap-desk{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);z-index:310;display:none}
+/* ピッカー本体：幅280px固定・どのタブでも完全に同じサイズ */
+.main-picker-popup{
+  background:var(--bg);border:2px solid var(--border-light);border-radius:24px;
+  padding:18px 16px 16px;width:280px;box-sizing:border-box;
+  box-shadow:0 12px 40px rgba(0,0,0,.14),0 2px 8px rgba(0,0,0,.06);
+  animation:pickerIn .18s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pickerIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+.picker-anchor{position:relative;display:inline-flex;flex-direction:column;align-items:center;overflow:visible}
+.picker-years{display:flex;gap:5px;margin-bottom:14px;justify-content:center}
+.picker-year-btn{padding:6px 8px;border-radius:999px;border:2px solid var(--border-light);background:var(--card);color:var(--text2);font-size:11px;font-weight:700;cursor:pointer;transition:all .18s;white-space:nowrap;letter-spacing:0}
+.picker-year-btn.sel{border-color:var(--dot);background:var(--dot);color:#fff;transform:scale(1.06)}
+.picker-year-btn:not(.sel):hover{border-color:var(--dot);color:var(--dot);background:var(--accent-light)}
+.picker-months{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.picker-month-btn{aspect-ratio:1;border-radius:50%;border:2px solid var(--border-light);background:var(--card);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;line-height:1}
+.picker-month-btn.sel{border-color:var(--dot);background:var(--dot);color:#fff;transform:scale(1.1)}
+.picker-month-btn:not(.sel):hover{border-color:var(--dot);color:var(--dot);background:var(--accent-light);transform:scale(1.05)}
+/* ピッカー外クリック用オーバーレイ */
+.picker-overlay-bg{position:fixed;inset:0;z-index:199}
+/* ─── /年月ピッカー ─── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:1rem;width:100%}
+.day-hdr{text-align:center;font-size:10px;color:var(--text2);padding:3px 0;width:100%}
+.day-hdr.sat{color:#4a9fd4}
+.day-hdr.sun{color:#e8547a}
+.day-cell{min-height:52px;border-radius:var(--radius-sm);border:1px solid var(--border-light);padding:3px;cursor:pointer;background:var(--card);transition:background .1s;width:100%;min-width:0;overflow:hidden}
+.day-cell:hover{background:#f0f4ff}
+.day-cell.other{opacity:.28}
+.day-cell.today .dnum{background:#f41010;color:#fff;border-radius:50%;width:21px;height:21px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.day-cell.sel{border-color:var(--dot);border-width:1.5px}
+.day-cell.sat-cell>.dnum{color:#4a9fd4}
+.day-cell.sun-cell>.dnum,.day-cell.hol-cell>.dnum{color:#e8547a}
+.dnum{font-size:11px;font-weight:500;width:21px;height:21px;display:flex;align-items:center;justify-content:center}
+.ev-chip{font-size:8px;border-radius:3px;padding:1px 3px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
+.panel{background:var(--card);border:1px solid var(--border-light);border-radius:var(--radius);padding:1rem;margin-bottom:.75rem}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem}
+.panel-title{font-size:13px;font-weight:500;color:var(--text2)}
+.add-day-btn{background:var(--dot);color:#fff;border:none;border-radius:var(--radius-sm);padding:3px 9px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:3px}
+.ev-list{display:flex;flex-direction:column;gap:.65rem}
+.ev-card{border-radius:var(--radius);overflow:hidden;background:var(--card);position:relative;display:flex;border:1px solid var(--border-light)}
+.ev-accent{width:5px;flex-shrink:0}
+.ev-inner{flex:1;min-width:0;position:relative}
+.ev-actions{position:absolute;top:7px;right:7px;display:flex;gap:3px;z-index:2}
+.aico{background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--text2)}
+.aico:hover{background:var(--border-light)}
+.aico.del:hover{color:#e8547a}
+.carousel{position:relative;width:100%;background:var(--card);overflow:hidden}
+.carousel-track{display:flex;transition:transform .3s ease}
+.carousel-slide{flex-shrink:0;width:100%}
+.carousel-slide img{width:100%;max-height:280px;object-fit:contain;display:block}
+.carousel-btn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.4);color:#fff;border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;z-index:3}
+.carousel-btn.prev{left:6px}
+.carousel-btn.next{right:6px}
+.carousel-dots{display:flex;justify-content:center;gap:4px;padding:4px 0;background:var(--card)}
+.carousel-dot{width:6px;height:6px;border-radius:50%;background:#ccc;cursor:pointer}
+.carousel-dot.active{background:var(--dot)}
+.ev-body{padding:.6rem .7rem}
+.ev-title{font-size:13.5px;font-weight:600;margin-bottom:4px;padding-right:86px}
+.ev-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.ev-tag{display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500;border:none}
+.ev-meta{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:5px}
+.meta-chip{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:2px}
+.time-row{display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;align-items:center}
+.tbadge{border:1px solid var(--dot);border-radius:5px;padding:2px 7px;display:inline-flex;align-items:center;gap:3px;height:22px}
+.tbadge-lbl{font-size:8.5px}
+.tbadge-val{font-size:10.5px;font-weight:600}
+.ticket-sm{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--dot);color:var(--dot);border-radius:5px;padding:2px 9px;font-size:10px;cursor:pointer;text-decoration:none;background:none;height:22px}
+.ticket-sm:hover{background:var(--accent-light)}
+.ev-detail{font-size:11px;color:#454851;white-space:pre-wrap;line-height:1.6;margin-top:2px}
+.priv-btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;margin-bottom:10px}
+.priv-btn{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);color:var(--text2);transition:all .15s}
+.priv-btn:hover{border-color:var(--dot);color:var(--dot);background:var(--accent-light)}
+.priv-btn.active{border-color:var(--dot);color:var(--dot);background:var(--accent-light)}
+.priv-section{margin-top:8px;border-top:1px solid var(--border-light);padding-top:8px;margin-bottom:10px}
+.login-required{font-size:11px;color:var(--text2);padding:6px;text-align:center}
+.cheki-empty{color:var(--text2);font-size:12px;text-align:center;padding:1.5rem}
+.cheki-add-zone{border:1.5px dashed var(--dot);border-radius:var(--radius-sm);padding:.75rem;text-align:center;cursor:pointer;font-size:12px;color:var(--dot);position:relative;margin-top:6px;background:var(--accent-light)}
+.cheki-add-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.cheki-add-zone:hover{opacity:.8}
+.cheki-edit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px}
+.cheki-edit-item{border-radius:var(--radius-sm);overflow:hidden;background:var(--border-light);display:flex;flex-direction:column}
+.cheki-edit-item img{width:100%;aspect-ratio:1;object-fit:cover;cursor:zoom-in;display:block}
+.cheki-edit-controls{display:flex;align-items:center;justify-content:space-between;padding:3px 4px;background:var(--bg);gap:2px}
+.cheki-edit-btn{background:var(--border-light);border:none;border-radius:4px;width:26px;height:26px;color:var(--text2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cheki-edit-btn:hover{background:var(--border)}
+.cheki-edit-btn.del{margin-left:auto}
+.cheki-edit-btn.del:hover{background:#fca5a5;color:#e8547a}
+.cheki-edit-btn:disabled{opacity:.25;cursor:default;pointer-events:none}
+.cheki-edit-bar{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.cheki-edit-toggle{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 10px;border-radius:20px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text2)}
+.cheki-edit-toggle.active{border-color:var(--dot);color:var(--dot);background:var(--accent-light)}
+.img-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out;animation:fadeIn .2s ease}
+.img-overlay img{max-width:100%;max-height:90vh;border-radius:var(--radius);object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.5)}
+.img-overlay-close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:34px;height:34px;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.setlist-save-btn{margin-top:6px;background:var(--dot);color:#fff;border:none;border-radius:var(--radius-sm);padding:5px 14px;font-size:12px;cursor:pointer}
+.empty{text-align:center;color:var(--text2);font-size:12px;padding:1.5rem}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.48);display:flex;align-items:flex-end;justify-content:center;z-index:100}
+@media(min-width:541px){.modal-bg{align-items:center}}
+.modal{background:var(--card);border-radius:var(--radius) var(--radius) 0 0;padding:1.25rem 1.25rem 2rem;width:100%;max-width:500px;max-height:92vh;overflow-y:auto}
+@media(min-width:541px){.modal{border-radius:var(--radius);width:92%}}
+.modal h2{font-size:15px;font-weight:600;margin-bottom:.9rem}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:.65rem}
+.form-row.single{grid-template-columns:1fr}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:11px;color:var(--text2);font-weight:500}
+.fg input,.fg select{font-size:16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:#fff;color:var(--text);padding:0 9px;width:100%;font-family:inherit;box-sizing:border-box;height:36px!important;min-height:36px!important;max-height:36px!important;line-height:36px}
+@media(max-width:540px){.fg input,.fg select{height:30px!important;min-height:30px!important;max-height:30px!important;line-height:30px;font-size:14px}}
+.fg textarea{font-size:16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:#fff;color:var(--text);padding:6px 9px;width:100%;font-family:inherit;box-sizing:border-box;resize:vertical;min-height:90px;height:auto}
+input[type=date]{min-width:0;width:100%;height:36px!important;min-height:36px!important;max-height:36px!important;padding:0 9px;box-sizing:border-box;-webkit-appearance:none;appearance:none;font-size:16px;display:block}
+@media(max-width:540px){input[type=date]{height:30px!important;min-height:30px!important;max-height:30px!important;font-size:14px}}
+.form-row.two-col-mob{align-items:stretch}
+.time-sel-row{display:flex;gap:5px;align-items:center}
+.time-sel-row select{flex:1;min-width:0}
+.time-sel-row span{font-size:13px;color:var(--text2)}
+.drop-zone{border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:.9rem;text-align:center;cursor:pointer;font-size:12px;color:var(--text2);transition:background .15s;position:relative}
+.drop-zone:hover,.drop-zone.drag-over{background:#f0f4ff}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.modal-acts{display:flex;gap:7px;justify-content:flex-end;margin-top:.9rem}
+.btn-p{border:none;border-radius:var(--radius-sm);padding:7px 18px;font-size:13px;cursor:pointer;background:var(--dot);color:#fff;font-weight:500}
+.btn-p:hover{opacity:.85}
+.btn-s{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 13px;font-size:13px;cursor:pointer;color:var(--text)}
+.btn-s:hover{background:var(--border-light)}
+.tag-editor{display:flex;flex-direction:column;gap:6px}
+.tag-list-edit{display:flex;flex-wrap:wrap;gap:5px;min-height:28px}
+.tag-edit-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:500;border:none;cursor:default}
+.tag-colors{display:flex;gap:4px;flex-wrap:wrap}
+.tc{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:transform .15s}
+.tc.sel{border-color:var(--text);transform:scale(1.2)}
+.tag-add-row{display:flex;gap:6px;align-items:center}
+.tag-add-row input{flex:1;font-size:12px;border-radius:var(--radius-sm);border:1px solid var(--border);padding:5px 8px;font-family:inherit}
+.flyer-previews{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.flyer-preview-item{position:relative;width:70px;height:70px}
+.flyer-preview-item img{width:70px;height:70px;object-fit:cover;border-radius:5px;border:1px solid var(--border)}
+.flyer-preview-item .rm-flyer{position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.toast{position:fixed;bottom:5rem;left:50%;transform:translateX(-50%);font-size:12px;padding:6px 16px;border-radius:20px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;background:#222;color:#fff;white-space:nowrap}
+.toast.show{opacity:1}
+.mob-nav{display:none;align-items:center;gap:4px;margin-bottom:0;background:transparent;overflow:visible;padding:2px 0}
+.mob-month{font-size:15px;font-weight:600;min-width:110px;text-align:center}
+.mob-view{display:none;flex-direction:column;gap:0}
+.mob-cal-overlay{display:none;background:var(--bg)}
+.mob-cal-overlay.open{display:block}
+.mob-card{display:flex;background:var(--card);cursor:pointer;align-items:stretch;min-height:68px;transition:background .1s;border-radius:var(--radius);border:1px solid var(--border-light);margin-bottom:6px;overflow:hidden}
+.mob-card:last-child{margin-bottom:0}
+.mob-card:active{background:#f0f4ff}
+.mob-acc{width:5px;flex-shrink:0}
+.mob-date-col{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 10px;width:52px;min-width:52px;max-width:52px;flex-shrink:0;border-right:1px solid var(--border-light);background:rgba(255,255,255,.72)}
+.mob-dnum{font-size:17px;font-weight:600;line-height:1;color:var(--text);opacity:.85}
+.mob-dnum.td{color:#f41010}
+.mob-dnum.sat{color:#4a9fd4}
+.mob-dnum.sun{color:#e8547a}
+.mob-dow{font-size:9px;color:var(--text2);margin-top:2px}
+.mob-dow.sat{color:#4a9fd4}
+.mob-dow.sun{color:#e8547a}
+.mob-flyer-col{width:56px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:5px 3px 5px 7px}
+.mob-flyer-img{width:52px;height:52px;border-radius:6px;object-fit:cover;border:1px solid var(--border-light)}
+.mob-flyer-ph{width:52px;height:52px;border-radius:6px;background:var(--border-light);display:flex;align-items:center;justify-content:center;color:var(--border);font-size:18px}
+.mob-info{flex:1;padding:6px 6px 6px 9px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.mob-venue-row{display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.mob-venue-badge{font-size:10px;color:var(--text2);background:var(--border-light);border-radius:4px;padding:1px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.mob-title-row{display:flex;align-items:baseline;gap:6px;min-width:0;overflow:hidden}
+.mob-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;max-width:100%}
+.mob-venue-inline{font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+.mob-venue{font-size:10px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mob-times{font-size:10px;color:var(--dot);margin-top:2px;font-weight:500}
+.mob-tags{display:flex;gap:3px;margin-top:3px;flex-wrap:wrap}
+.mob-tag{font-size:9px;font-weight:500;padding:1px 6px;border-radius:10px;border:none}
+.mob-chev{display:flex;align-items:center;padding-right:9px;color:var(--border);font-size:13px}
+.mob-add-fab{position:fixed;bottom:1.3rem;right:1.3rem;background:var(--dot);color:#fff;border:none;border-radius:50%;width:52px;height:52px;font-size:26px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:30;box-shadow:0 3px 14px rgba(0,0,0,.22)}
+.mob-empty{background:var(--card);border:1px solid var(--border-light);border-radius:var(--radius)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:540px){
+  .desk-only{display:none!important}
+  .mob-nav{display:flex}
+  .mob-view{display:flex}
+  .mob-add-fab{display:flex}
+  .form-row{grid-template-columns:1fr!important}
+  .form-row.two-col-mob{grid-template-columns:1fr 1fr!important;align-items:stretch}
+  .form-row.two-col-mob .fg input,.form-row.two-col-mob .fg select{font-size:14px;padding:0 5px;height:30px!important;min-height:30px!important;max-height:30px!important}
+  .form-row.two-col-mob .fg input[type=date]{font-size:14px;padding:0 3px;height:30px!important;min-height:30px!important;max-height:30px!important;-webkit-appearance:none;appearance:none}
+  .form-row.two-col-mob .fg .time-sel-row select{font-size:14px;padding:0 2px}
+  .form-row.two-col-mob .fg .time-sel-row span{font-size:11px}
+  .fg input,.fg select,input[type=date]{font-size:14px!important}
+}
+.mob-tabs{display:none;gap:0;background:var(--card);border-radius:var(--radius);padding:3px;border:1px solid var(--border-light);margin-bottom:0}
+@media(max-width:540px){.mob-tabs{display:flex}}
+.mob-fixed-top{position:sticky;top:0;z-index:100;background:var(--bg);padding-bottom:6px}
+@media(min-width:541px){.mob-fixed-top{position:static;background:transparent;padding-bottom:0}}
+.tag-tap-area{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:2px}
+.tag-tap-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;transition:opacity .15s}
+.tag-tap-chip.already{cursor:pointer}
+.tag-tap-chip:hover{filter:brightness(.95)}
+.setlist-text-display{font-size:12px;color:var(--text);white-space:pre-wrap;line-height:1.9;padding:8px 4px;font-family:inherit}
+.setlist-edit-inline-btn{margin-top:6px;display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text2);background:none;border:1px solid var(--border);border-radius:20px;padding:3px 10px;cursor:pointer}
+.setlist-edit-inline-btn:hover{border-color:var(--dot);color:var(--dot);background:var(--accent-light)}
+.setlist-area{width:100%;min-height:140px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-size:16px;font-family:inherit;resize:vertical;color:var(--text);line-height:1.8}
+.setlist-empty{font-size:11px;color:var(--text2);padding:6px 4px;font-style:italic}
+.mob-only{display:none}
+@media(max-width:540px){.mob-only{display:block}}
+.mob-tab{flex:1;padding:7px 4px;border:none;border-radius:8px;background:none;color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s}
+.mob-tab.active{background:var(--bg);color:var(--dot);font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.color-swatch{width:32px;height:32px;border-radius:50%;border:2.5px solid var(--border-light);cursor:pointer;transition:transform .15s,border-color .15s}
+.color-swatch:hover,.color-swatch.active{transform:scale(1.2);border-color:var(--dot)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header-row">
+    <h1><i class="ti ti-calendar-event"></i>ライブカレンダー</h1>
+    <div class="header-right">
+      <div class="sync-indicator" id="syncIndicator"><i class="ti ti-cloud"></i> 接続中...</div>
+      <div id="syncAuthBtn"></div>
+    </div>
+  </div>
+
+  <div class="nav desk-only" style="display:flex;align-items:center;gap:5px;margin-bottom:.5rem">
+    <button class="icon-btn" id="prevBtn"><i class="ti ti-chevron-left"></i></button>
+    <div class="picker-anchor">
+      <button id="monthLabel" onclick="toggleMainPicker()" class="month-label-btn"></button>
+      <div id="mainPickerWrapDesk" class="picker-popup-wrap-desk"></div>
+    </div>
+    <button class="icon-btn" id="nextBtn"><i class="ti ti-chevron-right"></i></button>
+    <div class="palette-wrap" style="margin-left:auto;gap:6px">
+      <div class="picker-anchor" style="position:relative">
+        <button class="icon-btn desk-only" onclick="toggleColorPicker(event)" title="テーマカラー"><i class="ti ti-palette"></i></button>
+        <div id="colorPickerPopup" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--card);border:1.5px solid var(--border-light);border-radius:16px;padding:14px;width:220px;box-shadow:0 8px 32px rgba(0,0,0,.13);z-index:300;animation:pickerIn .18s ease">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:10px;font-weight:600;text-align:center">テーマカラー</div>
+          <div id="colorSwatchesDesk" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"></div>
+        </div>
+      </div>
+      <div class="theme-dd" id="themeDD"></div>
+      <button class="add-btn" id="addBtn"><i class="ti ti-plus"></i> 追加</button>
+    </div>
+  </div>
+
+  <div class="mob-fixed-top">
+  <!-- スマホ タブ -->
+  <div class="mob-tabs" id="mobTabs">
+    <button class="mob-tab active" id="tabSchedule" onclick="switchMobTab('schedule')"><i class="ti ti-list"></i> イベントリスト</button>
+    <button class="mob-tab" id="tabCal" onclick="switchMobTab('cal')"><i class="ti ti-calendar-month"></i> カレンダー</button>
+  </div>
+
+  <div class="mob-nav">
+    <button class="icon-btn" id="mprevBtn"><i class="ti ti-chevron-left"></i></button>
+    <div class="picker-anchor" id="schedPickerAnchor">
+      <button id="mmonthLabel" onclick="toggleMainPicker()" class="mob-month mob-month-label-btn"></button>
+    </div>
+    <button class="icon-btn" id="mnextBtn"><i class="ti ti-chevron-right"></i></button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:4px">
+      <button class="icon-btn" id="mobCalBtn" title="カレンダー表示" style="display:none"><i class="ti ti-calendar-month"></i></button>
+      <div class="theme-dd" id="mthemeDD"></div>
+      <button class="icon-btn" id="mobColorBtn" onclick="toggleColorPicker()" title="テーマカラー"><i class="ti ti-palette"></i></button>
+    </div>
+  </div>
+
+  <!-- カラーピッカー（スマホ） -->
+  <div id="colorPickerWrap" style="display:none;background:var(--card);border:1px solid var(--border-light);border-radius:var(--radius);padding:12px;margin-bottom:.5rem" class="mob-only">
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:500">テーマカラー</div>
+    <div id="colorSwatchesMob" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  </div>
+
+  <div class="tag-filter-bar" id="tagFilterBar"></div>
+  </div><!-- /mob-fixed-top -->
+
+  <div class="desk-only">
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-title" id="panelTitle">日付を選択してください</div>
+        <button class="add-day-btn" id="addDayBtn" style="display:none"><i class="ti ti-plus"></i> この日にイベントを追加</button>
+      </div>
+      <div class="ev-list" id="eventList"></div>
+    </div>
+  </div>
+
+  <div class="mob-view" id="mobileView"></div>
+  <button class="mob-add-fab" id="mobAddBtn"><i class="ti ti-plus"></i></button>
+
+  <!-- スマホ用カレンダーオーバーレイ -->
+  <div class="mob-cal-overlay" id="mobCalOverlay">
+    <div style="padding:0">
+      <div id="mobCalNav" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px"></div>
+      <div id="mobCalGrid"></div>
+      <div class="panel" style="margin-top:12px">
+        <div class="panel-hdr">
+          <div class="panel-title" id="mobCalPanelTitle">日付を選択してください</div>
+        </div>
+        <div class="ev-list" id="mobCalEventList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ピッカーラッパー：position:fixed で画面に浮かせる（イベントリスト・カレンダー共通） -->
+<div id="mainPickerWrap" class="picker-popup-wrap"></div>
+<div id="mobCalPickerWrap" class="picker-popup-wrap"></div>
+<div id="modalContainer"></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBS7xXoNd6GLIZOnDCHy-KYl-AhFty_xDg",
+  authDomain: "live-calendar-332be.firebaseapp.com",
+  projectId: "live-calendar-332be",
+  storageBucket: "live-calendar-332be.firebasestorage.app",
+  messagingSenderId: "228455930158",
+  appId: "1:228455930158:web:38e5f33faec47477c742bf"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+const eventsCol = collection(db, "events");
+
+// 日本の祝日（2025〜2026年主要分）
+const HOLIDAYS = new Set([
+  '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24','2025-03-20',
+  '2025-04-29','2025-05-03','2025-05-04','2025-05-05','2025-05-06',
+  '2025-07-21','2025-08-11','2025-09-15','2025-09-23','2025-10-13',
+  '2025-11-03','2025-11-23','2025-11-24','2025-12-23',
+  '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20',
+  '2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06',
+  '2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23',
+  '2026-10-12','2026-11-03','2026-11-23',
+]);
+
+function compressImage(file){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=800;let w=img.width,h=img.height;
+        if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
+        const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        const data=canvas.toDataURL('image/jpeg',0.7);
+        resolve({data,kb:Math.round(data.length*0.75/1024)});
+      };img.src=ev.target.result;
+    };reader.readAsDataURL(file);
+  });
+}
+
+const TAG_COLORS=[
+  {bg:'#fef9c3',text:'#92400e',name:'黄色'},
+  {bg:'#ffedd5',text:'#9a3412',name:'オレンジ'},
+  {bg:'#fee2e2',text:'#991b1b',name:'赤'},
+  {bg:'#fce7f3',text:'#9d174d',name:'ピンク'},
+  {bg:'#fae8ff',text:'#701a75',name:'ふじ色'},
+  {bg:'#ede9fe',text:'#6b21a8',name:'紫'},
+  {bg:'#e0e7ff',text:'#3730a3',name:'インディゴ'},
+  {bg:'#e0f2fe',text:'#0c4a6e',name:'水色'},
+  {bg:'#dcfce7',text:'#14532d',name:'薄緑'},
+  {bg:'#f0fdf4',text:'#166534',name:'緑'},
+  {bg:'#f1f5f9',text:'#334155',name:'グレー'},
+  {bg:'#fdf4ff',text:'#701a75',name:'ラベンダー'},
+];
+const PRESET_TAGS=[
+  {name:'色々な十字架',bg:'#e0d9f0',text:'#6b5da3'},
+  {name:'ティンカーベル初野',bg:'#CFF3E4',text:'#3E8C72'},
+];
+const THEMES=[
+  {accent:'#0284c7',light:'#bae6fd',dot:'#38bdf8'},
+  {accent:'#06b6d4',light:'#bae6fd',dot:'#0891b2'},
+  {accent:'#1a1a2e',light:'#d0d0e8',dot:'#3a3a5c'},
+  {accent:'#9b1d1d',light:'#ffd6d6',dot:'#c0392b'},
+  {accent:'#283593',light:'#c5cae9',dot:'#3949ab'},
+  {accent:'#1b5e20',light:'#c8e6c9',dot:'#2e7d32'},
+  {accent:'#880e4f',light:'#f8bbd0',dot:'#ad1457'},
+  {accent:'#4a148c',light:'#e1bee7',dot:'#6a1b9a'},
+  {accent:'#b45309',light:'#fef3c7',dot:'#92400e'},
+];
+const DOW=['日','月','火','水','木','金','土'];
+let currentTheme=0,currentDate=new Date(),mobileDate=new Date();
+let selectedDate=null,editingId=null,pendingCopyId=null,isCopyMode=false,flyerDataUrls=[],activeTagFilter=null,draftTags=[],selTagColorIdx=0;
+let events=[],currentUser=null;
+
+// ─── 共通ヘルパー ───
+function getTagBg(tags){return tags&&tags.length?tags[0].bg:'var(--dot)';}
+function getFlyerImages(e){return Array.isArray(e.flyer)?e.flyer:(e.flyer?[e.flyer]:[]);}
+function isPresetTag(name){return PRESET_TAGS.some(p=>p.name===name);}
+function getTagsHTML(tags,cls){return (tags||[]).map(t=>`<span class="${cls}" style="background:${t.bg};color:${t.text}${isPresetTag(t.name)?'':';opacity:0.75'}">${t.name}</span>`).join('');}
+function timeOpts(max,step,sel){let o='';for(let v=0;v<max;v+=step){o+=`<option value="${v}"${v==sel?' selected':''}>${String(v).padStart(2,'0')}</option>`;}return o;}
+// ─── /共通ヘルパー ───
+
+// ログイン状態
+onAuthStateChanged(auth,user=>{
+  currentUser=user;
+  const authBtn=document.getElementById('syncAuthBtn');
+  if(authBtn){
+    if(user){
+      authBtn.innerHTML=`<button id="syncLogoutBtn" style="font-size:10px;border:1px solid var(--border);background:none;border-radius:10px;padding:1px 7px;cursor:pointer;color:var(--text2)" onclick="signOut(auth)">ログアウト</button>`;
+    } else {
+      authBtn.innerHTML=`<button id="syncLoginBtn" style="font-size:10px;border:none;background:var(--dot);color:#fff;border-radius:10px;padding:2px 8px;cursor:pointer"><i class="ti ti-brand-google" style="font-size:10px"></i> ログイン</button>`;
+      const lb=authBtn.querySelector('#syncLoginBtn');if(lb)lb.onclick=()=>signInWithPopup(auth,provider);
+    }
+  }
+  renderPanel();renderMobile();
+});
+
+function setSyncStatus(s){
+  const el=document.getElementById('syncIndicator');
+  if(s==='ok'){el.className='sync-indicator ok';el.innerHTML='<i class="ti ti-cloud-check"></i> 同期済み';}
+  else if(s==='syncing'){el.className='sync-indicator syncing';el.innerHTML='<i class="ti ti-cloud-upload"></i> 同期中...';}
+  else{el.className='sync-indicator err';el.innerHTML='<i class="ti ti-cloud-off"></i> オフライン';}
+}
+
+onSnapshot(eventsCol,snap=>{
+  events=snap.docs.map(d=>({id:d.id,...d.data()}));
+  setSyncStatus('ok');
+  buildTagFilterBar();buildCalendar();renderPanel();renderMobile();
+},()=>setSyncStatus('err'));
+
+async function saveEventToDb(ev){setSyncStatus('syncing');try{await setDoc(doc(db,'events',ev.id),ev);setSyncStatus('ok');}catch(e){setSyncStatus('err');showToast('保存に失敗しました');}}
+async function deleteEventFromDb(id){setSyncStatus('syncing');try{await deleteDoc(doc(db,'events',id));setSyncStatus('ok');}catch(e){setSyncStatus('err');}}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+function applyTheme(t){const th=THEMES[t],s=document.documentElement.style;s.setProperty('--accent',th.accent);s.setProperty('--accent-light',th.light);s.setProperty('--dot',th.dot);}
+function buildDD(id){
+  const dd=document.getElementById(id);
+  dd.innerHTML=THEMES.map((t,i)=>`<div class="tswatch${i===currentTheme?' active':''}" style="background:${t.accent}" data-i="${i}"></div>`).join('');
+  dd.querySelectorAll('.tswatch').forEach(s=>{s.addEventListener('click',ev=>{ev.stopPropagation();currentTheme=+s.dataset.i;
+    applyTheme(currentTheme);buildDD('themeDD');buildDD('mthemeDD');dd.classList.remove('open');buildCalendar();renderPanel();renderMobile();});});
+}
+const _pb=document.getElementById('paletteBtn');if(_pb)_pb.addEventListener('click',e=>{e.stopPropagation();document.getElementById('themeDD')?.classList.toggle('open');});
+document.addEventListener('click',()=>{document.getElementById('themeDD').classList.remove('open');document.getElementById('mthemeDD').classList.remove('open');});
+
+function dStr(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function todayStr(){const n=new Date();return dStr(n.getFullYear(),n.getMonth(),n.getDate());}
+function getEvs(ds){return events.filter(e=>e.date===ds);}
+function allTags(){const map={};events.forEach(e=>(e.tags||[]).forEach(t=>{map[t.name]={...t};}));return Object.values(map);}
+function isHoliday(ds){return HOLIDAYS.has(ds);}
+
+function buildTagFilterBar(){
+  const bar=document.getElementById('tagFilterBar');const tags=allTags();
+  if(!tags.length){bar.innerHTML='';return;}
+  let html=`<span style="font-size:11px;color:var(--text2);flex-shrink:0"><i class="ti ti-filter" style="font-size:12px"></i></span>`;
+  html+=`<div class="tag-filter-chip all${activeTagFilter===null?'':' inactive'}" data-tag="__all__">すべて</div>`;
+  html+=tags.map(t=>`<div class="tag-filter-chip" style="background:${activeTagFilter===t.name?t.bg:'var(--bg)'};color:${t.text};${isPresetTag(t.name)?'':`opacity:${activeTagFilter===t.name?'0.85':'0.7'};`}border-color:${t.text};${activeTagFilter===t.name?'font-weight:600':''}" data-tag="${t.name}">${t.name}</div>`).join('');
+  bar.innerHTML=html;
+  bar.querySelectorAll('.tag-filter-chip').forEach(c=>{c.addEventListener('click',()=>{
+    activeTagFilter=c.dataset.tag==='__all__'?null:c.dataset.tag;
+    buildTagFilterBar();renderPanel();renderMobile();buildCalendar();
+    if(document.getElementById('mobCalOverlay')?.classList.contains('open'))buildMobCal();
+  });});
+}
+
+function buildCalendar(){
+  // ③ ピッカー表示中はカレンダー再描画しない（スクロール干渉・押し下げ防止）
+  if(mainPickerOpen)return;
+  const y=currentDate.getFullYear(),m=currentDate.getMonth();
+  updateMainLabel('main',y,m);
+  const grid=document.getElementById('calGrid');
+  if(!grid)return;
+  const DOW_H=['日','月','火','水','木','金','土'];
+  let html=DOW_H.map((d,i)=>`<div class="day-hdr${i===0?' sun':i===6?' sat':''}">${d}</div>`).join('');
+  const first=new Date(y,m,1).getDay();
+  const last=new Date(y,m+1,0).getDate();
+  const prevLast=new Date(y,m,0).getDate();
+  const td=todayStr();
+  for(let i=0;i<first;i++){
+    const d=prevLast-first+1+i;
+    html+=`<div class="day-cell other"><div class="dnum">${d}</div></div>`;
+  }
+  for(let d=1;d<=last;d++){
+    const ds=dStr(y,m,d);
+    const dow=new Date(y,m,d).getDay();
+    const isSat=dow===6,isSun=dow===0,isHol=isHoliday(ds);
+    const evs=getEvs(ds).filter(e=>!activeTagFilter||(e.tags||[]).some(t=>t.name===activeTagFilter));
+    let cls=`day-cell${ds===td?' today':''}${ds===selectedDate?' sel':''}${isSat?' sat-cell':isSun||isHol?' sun-cell':''}`;
+    let inner=`<div class="dnum">${d}</div>`;
+    evs.slice(0,2).forEach(e=>{
+      const tc=e.tags&&e.tags.length?e.tags[0]:{bg:'#e0f2fe',text:'#0369a1'};
+      inner+=`<div class="ev-chip" style="background:${tc.bg};color:${tc.text}${isPresetTag(tc.name||'')?'':';opacity:0.78'}">${e.title||'(無題)'}</div>`;
+    });
+    if(evs.length>2)inner+=`<div class="ev-chip" style="background:#e5e7eb;color:#374151">+${evs.length-2}</div>`;
+    html+=`<div class="${cls}" data-date="${ds}">${inner}</div>`;
+  }
+  const trail=42-first-last;
+  for(let d=1;d<=trail;d++){
+    html+=`<div class="day-cell other"><div class="dnum">${d}</div></div>`;
+  }
+  grid.innerHTML=html;
+  grid.querySelectorAll('.day-cell:not(.other)').forEach(c=>{
+    c.addEventListener('click',()=>{selectedDate=c.dataset.date;buildCalendar();renderPanel();});
+  });
+}
+
+function carouselHTML(images,prefix){
+  if(!images||!images.length)return '';
+  if(images.length===1)return `<div class="carousel"><div class="carousel-track"><div class="carousel-slide"><img src="${images[0]}" alt="フライヤー" style="cursor:zoom-in" onclick="openImgOverlay('${images[0]}')"></div></div></div>`;
+  const slides=images.map(src=>`<div class="carousel-slide"><img src="${src}" alt="フライヤー" style="cursor:zoom-in" onclick="openImgOverlay('${src}')"></div>`).join('');
+  const dots=images.map((_,i)=>`<div class="carousel-dot${i===0?' active':''}" data-i="${i}"></div>`).join('');
+  return `<div class="carousel" id="car-${prefix}">
+    <div class="carousel-track" id="car-track-${prefix}">${slides}</div>
+    <button class="carousel-btn prev" onclick="carMove('${prefix}',-1)"><i class="ti ti-chevron-left"></i></button>
+    <button class="carousel-btn next" onclick="carMove('${prefix}',1)"><i class="ti ti-chevron-right"></i></button>
+    <div class="carousel-dots" id="car-dots-${prefix}">${dots}</div>
+  </div>`;
+}
+
+window.carMove=function(prefix,dir){
+  const track=document.getElementById('car-track-'+prefix);
+  const dots=document.getElementById('car-dots-'+prefix);
+  if(!track)return;
+  const slides=track.querySelectorAll('.carousel-slide');
+  const allDots=dots?dots.querySelectorAll('.carousel-dot'):[];
+  let cur=track.dataset.cur?+track.dataset.cur:0;
+  cur=(cur+dir+slides.length)%slides.length;
+  track.dataset.cur=cur;
+  track.style.transform=`translateX(-${cur*100}%)`;
+  allDots.forEach((d,i)=>d.classList.toggle('active',i===cur));
+};
+
+function timeBadgesHTML(e,includeTicket){
+  const dc=e.tags&&e.tags.length?e.tags[0].text:'var(--dot)';
+  const customTag=e.tags&&e.tags.length&&!isPresetTag(e.tags[0].name);
+  const op=customTag?';opacity:0.75':'';
+  const hasTime=e.openH!=null||e.startH!=null;
+  const ticketHtml=includeTicket&&e.ticket?`<a class="ticket-sm" href="${e.ticket}" target="_blank" style="border-color:${dc};color:${dc}${op}"><i class="ti ti-ticket" style="font-size:11px"></i> チケット購入</a>`:'';
+  if(!hasTime&&!ticketHtml)return '';
+  let html=`<div class="time-row">`;
+  if(e.openH!=null)html+=`<div class="tbadge" style="border-color:${dc}${op}"><span class="tbadge-lbl" style="color:${dc}${op}">開場</span><span class="tbadge-val" style="color:${dc}${op}">${String(e.openH).padStart(2,'0')}<span style="font-size:8px;opacity:.7">時</span>${String(e.openM||0).padStart(2,'0')}<span style="font-size:8px;opacity:.7">分</span></span></div>`;
+  if(e.startH!=null)html+=`<div class="tbadge" style="border-color:${dc}${op}"><span class="tbadge-lbl" style="color:${dc}${op}">開演</span><span class="tbadge-val" style="color:${dc}${op}">${String(e.startH).padStart(2,'0')}<span style="font-size:8px;opacity:.7">時</span>${String(e.startM||0).padStart(2,'0')}<span style="font-size:8px;opacity:.7">分</span></span></div>`;
+  if(ticketHtml)html+=ticketHtml;
+  return html+'</div>';
+}
+
+function privSectionHTML(eid){
+  if(!currentUser)return `<div class="login-required"><i class="ti ti-lock" style="font-size:12px"></i> ログインするとチェキ・セトリを記録できます</div>`;
+  return `<div class="priv-btns">
+    <button class="priv-btn" id="btn-cheki-${eid}" onclick="togglePriv('${eid}','cheki')"><i class="ti ti-camera"></i> 今日のテェキ</button>
+    <button class="priv-btn" id="btn-uso-${eid}" onclick="togglePriv('${eid}','uso')"><i class="ti ti-list"></i> 嘘セトリ</button>
+    <button class="priv-btn" id="btn-maji-${eid}" onclick="togglePriv('${eid}','maji')"><i class="ti ti-list-check"></i> マジセトリ</button>
+  </div>
+  <div id="priv-content-${eid}"></div>`;
+}
+
+window.togglePriv=async function(eid,type){
+  const scrollYBefore=window.scrollY;
+  const contentEl=document.getElementById('priv-content-'+eid);
+  const btnCheki=document.getElementById('btn-cheki-'+eid);
+  const btnUso=document.getElementById('btn-uso-'+eid);
+  const btnMaji=document.getElementById('btn-maji-'+eid);
+  const isActive=contentEl.dataset.type===type&&contentEl.dataset.open==='1';
+  if(isActive){contentEl.dataset.open='0';contentEl.dataset.type='';contentEl.innerHTML='';
+    if(btnCheki)btnCheki.classList.remove('active');
+    if(btnUso)btnUso.classList.remove('active');
+    if(btnMaji)btnMaji.classList.remove('active');
+    return;}
+  contentEl.dataset.open='1';contentEl.dataset.type=type;
+  if(btnCheki)btnCheki.classList.toggle('active',type==='cheki');
+  if(btnUso)btnUso.classList.toggle('active',type==='uso');
+  if(btnMaji)btnMaji.classList.toggle('active',type==='maji');
+  contentEl.innerHTML=`<div style="font-size:11px;color:var(--text2);padding:6px">読み込み中...</div>`;
+  const ref=doc(db,'events',eid,'private',type);
+  const snap=await getDoc(ref);
+  const data=snap.exists()?snap.data():{};
+  if(type==='cheki'){
+    const imgs=data.images||[];
+    const ev=events.find(x=>x.id===eid);
+    const tagBg=ev&&ev.tags&&ev.tags.length?ev.tags[0].bg:'var(--accent-light)';
+    const tagText=ev&&ev.tags&&ev.tags.length?ev.tags[0].text:'var(--dot)';
+    renderChekiSection(eid,ref,[...imgs],tagBg,tagText,contentEl);
+  } else if(type==='uso'||type==='maji'){
+    const text=data.text||'';
+    contentEl.innerHTML=renderSetlistHTML(eid,type,text,false);
+  }
+};
+
+// ── セトリ: テキストエリア版 ──
+function renderSetlistDisplay(text,type){
+  if(!text||!text.trim())return `<div class="setlist-empty">${type==='maji'?'マジセトリを入力':'嘘セトリを入力'}</div>`;
+  return `<div class="setlist-text-display">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+}
+function renderSetlistHTML(eid,type,text,isEdit){
+  const placeholder=type==='uso'?'嘘セトリをメモ…（1行1曲など自由に）':'マジセトリをメモ…（1行1曲など自由に）';
+  if(isEdit){
+    return `<div class="priv-section">
+      <textarea class="setlist-area" id="setlist-ta-${eid}-${type}" placeholder="${placeholder}">${text||''}</textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="setlist-save-btn" onclick="saveSetlist('${eid}','${type}')">保存</button>
+        <button class="setlist-save-btn" style="background:var(--border);color:var(--text2)" onclick="cancelSetlistEdit('${eid}','${type}')">キャンセル</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="priv-section">
+    ${renderSetlistDisplay(text,type)}
+    <button class="setlist-edit-inline-btn" onclick="startSetlistEditById('${eid}','${type}')"><i class="ti ti-edit" style="font-size:10px"></i> 編集</button>
+  </div>`;
+}
+window.startSetlistEdit=function(eid,type,text){
+  const contentEl=document.getElementById('priv-content-'+eid);
+  if(!contentEl)return;
+  contentEl.dataset.type=type;
+  contentEl.innerHTML=renderSetlistHTML(eid,type,text||'',true);
+  const ta=document.getElementById('setlist-ta-'+eid+'-'+type);
+  if(ta){const s=window.scrollY;ta.focus();ta.selectionStart=ta.selectionEnd=ta.value.length;setTimeout(()=>window.scrollTo(0,s),100);}
+};
+window.startSetlistEditById=async function(eid,type){
+  const contentEl=document.getElementById('priv-content-'+eid);
+  if(!contentEl)return;
+  contentEl.innerHTML=`<div style="font-size:11px;color:var(--text2);padding:6px">読み込み中...</div>`;
+  const ref=doc(db,'events',eid,'private',type);
+  const snap=await getDoc(ref);
+  const text=snap.exists()?snap.data().text||'':'';
+  contentEl.dataset.type=type;
+  contentEl.innerHTML=renderSetlistHTML(eid,type,text,true);
+  const ta=document.getElementById('setlist-ta-'+eid+'-'+type);
+  if(ta){const s=window.scrollY;ta.focus();ta.selectionStart=ta.selectionEnd=ta.value.length;setTimeout(()=>window.scrollTo(0,s),100);}
+};
+window.cancelSetlistEdit=function(eid,type){
+  const contentEl=document.getElementById('priv-content-'+eid);
+  if(!contentEl)return;
+  const ref=doc(db,'events',eid,'private',type);
+  getDoc(ref).then(snap=>{
+    const data=snap.exists()?snap.data():{};
+    const text=data.text||'';
+    contentEl.innerHTML=renderSetlistHTML(eid,type,text,false);
+  });
+};
+window.saveSetlist=async function(eid,type){
+  const ta=document.getElementById('setlist-ta-'+eid+'-'+type);
+  const text=ta?ta.value:'';
+  const ref=doc(db,'events',eid,'private',type||'uso');
+  await setDoc(ref,{text});
+  const contentEl=document.getElementById('priv-content-'+eid);
+  if(contentEl)contentEl.innerHTML=renderSetlistHTML(eid,type,text,false);
+  showToast((type==='maji'?'マジセトリ':'嘘セトリ')+'を保存しました！');
+};
+
+// チェキセクション描画（通常表示 / 編集モード切り替え対応）
+function renderChekiSection(eid,ref,imgs,tagBg,tagText,contentEl,editMode){
+  editMode=editMode||false;
+  const ev=events.find(x=>x.id===eid);
+  if(!tagBg){tagBg=ev&&ev.tags&&ev.tags.length?ev.tags[0].bg:'var(--accent-light)';}
+  if(!tagText){tagText=ev&&ev.tags&&ev.tags.length?ev.tags[0].text:'var(--dot)';}
+
+  function normalView(){
+    const slides=imgs.map(src=>`<div class="carousel-slide"><img src="${src}" alt="テェキ" style="cursor:zoom-in" onclick="openImgOverlay('${src}')"></div>`).join('');
+    const dots=imgs.map((_,i)=>`<div class="carousel-dot${i===0?' active':''}" data-i="${i}"></div>`).join('');
+    const carHtml=imgs.length
+      ?`<div class="carousel" id="car-priv-${eid}">
+          <div class="carousel-track" id="car-track-priv-${eid}">${slides}</div>
+          ${imgs.length>1?`<button class="carousel-btn prev" onclick="carMove('priv-${eid}',-1)"><i class="ti ti-chevron-left"></i></button><button class="carousel-btn next" onclick="carMove('priv-${eid}',1)"><i class="ti ti-chevron-right"></i></button>`:''}
+          ${imgs.length>1?`<div class="carousel-dots" id="car-dots-priv-${eid}">${dots}</div>`:''}
+        </div>`
+      :`<div class="cheki-empty">まだテェキがありません</div>`;
+    const editBtn=imgs.length?`<button class="cheki-edit-toggle" onclick="renderChekiSection('${eid}',null,null,null,null,document.getElementById('priv-content-${eid}'),true)"><i class="ti ti-edit" style="font-size:11px"></i> 編集</button>`:'';
+    contentEl.innerHTML=`<div class="priv-section">
+      <div class="cheki-edit-bar">${editBtn}</div>
+      <div style="border-radius:var(--radius-sm);overflow:hidden">${carHtml}</div>
+      <div class="cheki-add-zone" style="border-color:${tagText};color:${tagText};background:${tagBg}22" id="cheki-add-${eid}">
+        <input type="file" accept="image/*" multiple id="cheki-input-${eid}">
+        <i class="ti ti-plus" style="font-size:16px;display:block;margin-bottom:3px"></i>テェキを追加
+      </div>
+    </div>`;
+    document.getElementById('cheki-input-'+eid).addEventListener('change',async ev=>{
+      const files=Array.from(ev.target.files);if(!files.length)return;
+      document.getElementById('cheki-add-'+eid).innerHTML=`<i class="ti ti-loader-2" style="animation:spin 1s linear infinite;font-size:16px;display:block"></i>圧縮中...`;
+      const compressed=await Promise.all(files.map(f=>compressImage(f)));
+      const r=ref||doc(db,'events',eid,'private','cheki');
+      const snap=await getDoc(r);const cur=(snap.exists()?snap.data().images:null)||[];
+      const newImgs=[...cur,...compressed.map(c=>c.data)];
+      await setDoc(r,{images:newImgs});
+      showToast(`テェキを${files.length}枚追加しました！`);
+      renderChekiSection(eid,r,newImgs,tagBg,tagText,contentEl,false);
+    });
+  }
+
+  function editView(){
+    const r=ref||doc(db,'events',eid,'private','cheki');
+    getDoc(r).then(snap=>{
+      const latestImgs=(snap.exists()?snap.data().images:null)||[];
+      let workImgs=[...latestImgs];
+      function renderGrid(){
+        const grid=workImgs.map((src,i)=>`
+          <div class="cheki-edit-item" data-i="${i}">
+            <img src="${src}" onclick="openImgOverlay('${src}')">
+            <div class="cheki-edit-controls">
+              <button class="cheki-edit-btn" title="左へ" onclick="chekiMove(${i},-1)" ${i===0?'disabled':''}><i class="ti ti-arrow-left"></i></button>
+              <button class="cheki-edit-btn" title="右へ" onclick="chekiMove(${i},1)" ${i===workImgs.length-1?'disabled':''}><i class="ti ti-arrow-right"></i></button>
+              <button class="cheki-edit-btn del" title="削除" onclick="chekiDelete(${i})"><i class="ti ti-trash"></i></button>
+            </div>
+          </div>`).join('');
+        contentEl.innerHTML=`<div class="priv-section">
+          <div class="cheki-edit-bar">
+            <button class="cheki-edit-toggle active"><i class="ti ti-edit" style="font-size:11px"></i> 編集中</button>
+            <button class="cheki-edit-toggle" onclick="chekiSaveEdit()" style="border-color:var(--dot);color:var(--dot);background:var(--accent-light)"><i class="ti ti-check" style="font-size:11px"></i> 保存して戻る</button>
+          </div>
+          <div class="cheki-edit-grid" id="cheki-grid-${eid}">${workImgs.length?grid:'<div class="cheki-empty" style="grid-column:1/-1">テェキがありません</div>'}</div>
+        </div>`;
+        window.chekiDelete=function(i){
+          if(!confirm('このテェキを削除しますか？'))return;
+          workImgs.splice(i,1);renderGrid();
+        };
+        window.chekiMove=function(i,dir){
+          const j=i+dir;if(j<0||j>=workImgs.length)return;
+          [workImgs[i],workImgs[j]]=[workImgs[j],workImgs[i]];renderGrid();
+        };
+        window.chekiSaveEdit=async function(){
+          contentEl.innerHTML=`<div style="font-size:11px;color:var(--text2);padding:6px">保存中...</div>`;
+          await setDoc(r,{images:workImgs});
+          showToast('テェキを更新しました！');
+          renderChekiSection(eid,r,workImgs,tagBg,tagText,contentEl,false);
+        };
+      }
+      renderGrid();
+    });
+  }
+
+  if(editMode){editView();}else{normalView();}
+}
+window.renderChekiSection=renderChekiSection;
+
+// 画像拡大表示
+window.openImgOverlay=function(src){
+  const ov=document.createElement('div');
+  ov.className='img-overlay';
+  ov.innerHTML=`<button class="img-overlay-close" onclick="this.parentElement.remove()"><i class="ti ti-x"></i></button><img src="${src}" alt="">`;
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+};
+
+function eventCardHTML(e){
+  const _evAccent=getTagBg(e.tags);
+  const tagsHTML=getTagsHTML(e.tags,'ev-tag');
+  const imgs=getFlyerImages(e);
+  return `<div class="ev-card"><div class="ev-accent" style="background:${_evAccent}"></div><div class="ev-inner">
+    <div class="ev-actions">
+      <div class="aico" onclick="openEditModal('${e.id}')"><i class="ti ti-edit"></i></div>
+      <div class="aico" onclick="copyEvent('${e.id}')"><i class="ti ti-copy"></i></div>
+    </div>
+    ${imgs.length?carouselHTML(imgs,e.id):''}
+    <div class="ev-body">
+      <div class="ev-title">${e.title||'(無題)'}</div>
+      ${tagsHTML?`<div class="ev-tags">${tagsHTML}</div>`:''}
+      ${e.venue?`<div class="ev-meta"><span class="meta-chip"><i class="ti ti-map-pin" style="font-size:11px"></i>${e.venue}</span></div>`:''}
+      ${timeBadgesHTML(e,true)}
+      ${privSectionHTML(e.id)}
+      ${e.detail?`<div class="ev-detail" style="margin-top:12px;margin-bottom:16px">${e.detail}</div>`:''}
+      <div style="display:flex;justify-content:center;margin-top:16px;padding-top:10px;border-top:1px solid var(--border-light)">
+        <button onclick="deleteEvent('${e.id}')" style="background:none;border:1.5px solid #e8547a;color:#e8547a;border-radius:var(--radius-sm);padding:6px 22px;font-size:12px;cursor:pointer;font-weight:500;display:flex;align-items:center;gap:5px"><i class="ti ti-trash" style="font-size:13px"></i> イベントを削除</button>
+      </div>
+    </div>
+  </div></div>`;
+}
+
+function renderPanel(){
+  const title=document.getElementById('panelTitle'),list=document.getElementById('eventList'),btn=document.getElementById('addDayBtn');
+  if(!selectedDate){title.textContent='日付を選択してください';list.innerHTML='';btn.style.display='none';return;}
+  const[y,mo,d]=selectedDate.split('-');title.textContent=`${y}年${mo}月${d}日`;
+  btn.style.display='flex';btn.onclick=()=>openAddModal();
+  let evs=getEvs(selectedDate);if(activeTagFilter)evs=evs.filter(e=>(e.tags||[]).some(t=>t.name===activeTagFilter));
+  list.innerHTML=evs.length?evs.map(eventCardHTML).join(''):`<div class="empty"><i class="ti ti-calendar-off" style="font-size:22px;display:block;margin-bottom:6px"></i>イベントなし</div>`;
+}
+
+function mobileDetailHTML(e){
+  const[y,mo,d]=e.date?e.date.split('-'):['','',''];
+  const dow=e.date?DOW[new Date(e.date+'T00:00:00').getDay()]:'';
+  const tagsHTML=getTagsHTML(e.tags,'ev-tag');
+  const imgs=getFlyerImages(e);
+  return `<div class="modal-bg" id="modalBg"><div class="modal">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem">
+      <h2 style="margin:0;font-size:14px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px">${e.title||'(無題)'}</h2>
+      <div style="display:flex;gap:3px;flex-shrink:0">
+        <div class="aico" onclick="closeModal();openEditModal('${e.id}')"><i class="ti ti-edit"></i></div>
+        <div class="aico" onclick="closeModal();copyEvent('${e.id}')"><i class="ti ti-copy"></i></div>
+        <div class="aico" onclick="closeModal()"><i class="ti ti-x"></i></div>
+      </div>
+    </div>
+    ${imgs.length?`<div style="border-radius:var(--radius);overflow:hidden;margin-bottom:.7rem">${carouselHTML(imgs,'mob-'+e.id)}</div>`:''}
+    ${tagsHTML?`<div class="ev-tags" style="margin-bottom:.5rem">${tagsHTML}</div>`:''}
+    ${e.date?`<div style="font-size:11px;color:#454851;margin-bottom:5px">${y}年${mo}月${d}日（${dow}）${e.venue?' · '+e.venue:''}</div>`:''}
+    ${timeBadgesHTML(e,true)}
+    ${privSectionHTML(e.id)}
+    ${e.detail?`<div class="ev-detail" style="margin-top:14px;margin-bottom:16px">${e.detail}</div>`:''}
+    <div style="display:flex;justify-content:center;margin-top:20px;padding-top:12px;border-top:1px solid var(--border-light)">
+      <button onclick="deleteEvent('${e.id}')" style="background:none;border:1.5px solid #e8547a;color:#e8547a;border-radius:var(--radius-sm);padding:7px 24px;font-size:12px;cursor:pointer;font-weight:500;display:flex;align-items:center;gap:5px"><i class="ti ti-trash" style="font-size:13px"></i> イベントを削除</button>
+    </div>
+  </div></div>`;
+}
+
+function mobCardHTML(e){
+  const td=todayStr();
+  const d=e.date?+e.date.split('-')[2]:0;
+  const dowN=e.date?new Date(e.date+'T00:00:00').getDay():0;
+  const dow=DOW[dowN];const isToday=e.date===td;
+  const isSat=dowN===6,isSun=dowN===0||isHoliday(e.date);
+  const times=[];if(e.openH!=null)times.push(`開場 ${String(e.openH).padStart(2,'0')}:${String(e.openM||0).padStart(2,'0')}`);if(e.startH!=null)times.push(`開演 ${String(e.startH).padStart(2,'0')}:${String(e.startM||0).padStart(2,'0')}`);
+  const tagsHTML=getTagsHTML(e.tags,'mob-tag');
+  const imgs=getFlyerImages(e);
+  const thumb=imgs.length?imgs[0]:null;
+  const _mobAcc=getTagBg(e.tags);
+  return `<div class="mob-card" data-event-date="${e.date}" onclick="openMobileDetail('${e.id}')">
+    <div class="mob-acc" style="background:${_mobAcc}"></div>
+    <div class="mob-date-col">
+      <div class="mob-dnum${isToday?' td':isSat?' sat':isSun?' sun':''}">${d}</div>
+      <div class="mob-dow${isSat?' sat':isSun?' sun':''}">${dow}</div>
+    </div>
+    <div class="mob-flyer-col">${thumb?`<img class="mob-flyer-img" src="${thumb}" alt="">`:`<div class="mob-flyer-ph"><i class="ti ti-photo" style="font-size:17px"></i></div>`}</div>
+    <div class="mob-info">
+      <div class="mob-title-row">
+        <div class="mob-title">${e.title||'(無題)'}</div>
+      </div>
+      ${e.venue?`<div class="mob-venue"><i class="ti ti-map-pin" style="font-size:9px"></i> ${e.venue}</div>`:''}
+      ${times.length?`<div class="mob-times">${times.join('　')}</div>`:''}
+      ${tagsHTML?`<div class="mob-tags">${tagsHTML}</div>`:''}
+    </div>
+    <div class="mob-chev"><i class="ti ti-chevron-right"></i></div>
+  </div>`;
+}
+
+function renderMobile(){
+  // ③ ピッカー表示中はリスト再描画しない（スクロール干渉防止）
+  if(mainPickerOpen)return;
+  const mv=document.getElementById('mobileView');const y=mobileDate.getFullYear(),m=mobileDate.getMonth();
+  updateMainLabel('mob',y,m);
+  let evs=events.filter(e=>{if(!e.date)return false;const[ey,em]=e.date.split('-');return +ey===y&&+em===m+1;});
+  if(activeTagFilter)evs=evs.filter(e=>(e.tags||[]).some(t=>t.name===activeTagFilter));
+  evs.sort((a,b)=>a.date>b.date?1:a.date<b.date?-1:0);
+  if(!evs.length){mv.innerHTML=`<div class="empty mob-empty"><i class="ti ti-calendar-off" style="font-size:26px;display:block;margin-bottom:6px"></i>この月のイベントなし<br><span style="font-size:11px;margin-top:5px;display:block">右下の＋から追加できます</span></div>`;return;}
+  mv.innerHTML=evs.map(e=>mobCardHTML(e)).join('');
+}
+
+window.openMobileDetail=function(id){
+  const e=events.find(x=>x.id===id);if(!e)return;
+  document.getElementById('modalContainer').innerHTML=mobileDetailHTML(e);
+  document.getElementById('cancelBtn').addEventListener('click',closeModal);
+  document.getElementById('modalBg').addEventListener('click',ev=>{if(ev.target.id==='modalBg')closeModal();});
+};
+
+function renderTagEditor(container){
+  const usedMap={};
+  events.forEach(e=>(e.tags||[]).forEach(t=>{usedMap[t.name]={bg:t.bg,text:t.text};}));
+  PRESET_TAGS.forEach(t=>{usedMap[t.name]={bg:t.bg,text:t.text};});
+  const tapTags=Object.entries(usedMap).map(([name,c])=>({name,...c}));
+
+  const colorsHTML=TAG_COLORS.map((c,i)=>`<div class="tc${i===selTagColorIdx?' sel':''}" style="background:${c.bg};border-color:${i===selTagColorIdx?c.text:'transparent'}" title="${c.name||''}" data-i="${i}"></div>`).join('');
+
+  const tapHTML=tapTags.length?tapTags.map(t=>{
+    const already=!!draftTags.find(d=>d.name===t.name);
+    return `<div class="tag-tap-chip${already?' already':''}" style="background:${t.bg};color:${t.text};opacity:${already?'0.4':isPresetTag(t.name)?'1':'0.75'}" data-tname="${t.name}" data-tbg="${t.bg}" data-ttext="${t.text}">${t.name}${already?' ✓':''}</div>`;
+  }).join(''):'';
+
+  container.innerHTML=`
+    ${tapHTML?`<div style="margin-bottom:8px"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">タップして追加</div><div class="tag-tap-area">${tapHTML}</div></div>`:''}
+    <div style="font-size:10px;color:var(--text2);margin-bottom:4px">新しいタグを作る</div>
+    <div class="tag-list-edit">${draftTags.map((t,i)=>`<div class="tag-edit-chip" style="background:${t.bg};color:${t.text}${isPresetTag(t.name)?'':';opacity:0.75'}">${t.name} <span style="cursor:pointer;opacity:.7;font-size:13px" onclick="removeDraftTag(${i})">×</span></div>`).join('')}</div>
+    <div class="tag-colors">${colorsHTML}</div>
+    <div class="tag-add-row"><input id="tagNameInput" placeholder="タグ名を入力…" maxlength="12"><button type="button" class="btn-p" style="padding:5px 10px;font-size:12px;flex-shrink:0" onclick="addDraftTag()"><i class="ti ti-plus"></i> 追加</button></div>`;
+
+  container.querySelectorAll('.tag-tap-chip').forEach(chip=>{
+    chip.addEventListener('click',()=>{
+      const name=chip.dataset.tname,bg=chip.dataset.tbg,text=chip.dataset.ttext;
+      if(draftTags.find(t=>t.name===name)){draftTags=draftTags.filter(t=>t.name!==name);}
+      else{draftTags.push({name,bg,text});}
+      renderTagEditor(container);
+    });
+  });
+  container.querySelectorAll('.tc').forEach(c=>{c.addEventListener('click',()=>{selTagColorIdx=+c.dataset.i;renderTagEditor(container);});});
+  const inp=container.querySelector('#tagNameInput');
+  if(inp)inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();addDraftTag();}});
+}
+
+window.addDraftTag=function(){const inp=document.getElementById('tagNameInput');if(!inp)return;const name=inp.value.trim();if(!name)return;const col=TAG_COLORS[selTagColorIdx];if(!draftTags.find(t=>t.name===name))draftTags.push({name,bg:col.bg,text:col.text});inp.value='';const te=document.getElementById('tagEditorWrap');if(te)renderTagEditor(te);};
+window.removeDraftTag=function(i){draftTags.splice(i,1);const te=document.getElementById('tagEditorWrap');if(te)renderTagEditor(te);};
+
+function openAddModal(date){editingId=null;pendingCopyId=null;isCopyMode=false;flyerDataUrls=[];draftTags=[];renderModal({date:date||selectedDate||todayStr()});}
+window.openEditModal=function(id){
+  editingId=id;pendingCopyId=null;isCopyMode=false;const e=events.find(x=>x.id===id);
+  flyerDataUrls=[...getFlyerImages(e)];
+  draftTags=[...(e.tags||[])];renderModal(e);
+};
+
+function flyerPreviewsHTML(){
+  if(!flyerDataUrls.length)return `<i class="ti ti-photo-up" style="font-size:19px;display:block;margin-bottom:3px"></i>タップまたはドラッグで選択（複数可）`;
+  return `<div class="flyer-previews">${flyerDataUrls.map((src,i)=>`<div class="flyer-preview-item"><img src="${src}"><button class="rm-flyer" onclick="removeFlyer(${i})">×</button></div>`).join('')}</div><div style="font-size:11px;color:var(--text2);margin-top:4px">${flyerDataUrls.length}枚選択済み　さらに追加できます</div>`;
+}
+
+function renderModal(e){
+  const isEdit=!!editingId;
+  const isCopy=isCopyMode;
+  document.getElementById('modalContainer').innerHTML=`<div class="modal-bg" id="modalBg"><div class="modal">
+    <h2>${isEdit?'イベントを編集':isCopy?'イベントをコピーして追加':'新しいイベントを追加'}</h2>
+    <div class="form-row single"><div class="fg"><label>イベント名</label><input id="f-title" placeholder="ライブタイトル" value="${e.title||''}"></div></div>
+    <div class="form-row two-col-mob">
+      <div class="fg"><label>日付</label><input id="f-date" type="date" value="${e.date||''}"></div>
+      <div class="fg"><label>会場</label><input id="f-venue" placeholder="会場名" value="${e.venue||''}" list="venue-list" autocomplete="off"><datalist id="venue-list">${[...new Set(events.filter(x=>x.venue).map(x=>x.venue))].map(v=>`<option value="${v}">`).join('')}</datalist></div>
+    </div>
+    <div class="form-row two-col-mob">
+      <div class="fg"><label>開場時間</label><div class="time-sel-row"><select id="f-openH">${timeOpts(24,1,e.openH??18)}</select><span>時</span><select id="f-openM">${timeOpts(60,15,e.openM??0)}</select><span>分</span></div></div>
+      <div class="fg"><label>開演時間</label><div class="time-sel-row"><select id="f-startH">${timeOpts(24,1,e.startH??19)}</select><span>時</span><select id="f-startM">${timeOpts(60,15,e.startM??0)}</select><span>分</span></div></div>
+    </div>
+    <div class="form-row single"><div class="fg"><label>チケットURL</label><input id="f-ticket" placeholder="https://..." value="${e.ticket||''}"></div></div>
+    <div class="form-row single"><div class="fg"><label>タグ</label><div class="tag-editor" id="tagEditorWrap"></div></div></div>
+    <div class="form-row single"><div class="fg">
+      <label>イベントフライヤー <span style="font-size:10px;color:#10b981">（複数枚OK・自動圧縮）</span></label>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" accept="image/*" multiple id="flyerInput">
+        <div id="flyerPreview">${flyerPreviewsHTML()}</div>
+      </div>
+    </div></div>
+    <div class="form-row single"><div class="fg"><label>イベント詳細</label><textarea id="f-detail" placeholder="イベント詳細を入力する" style="min-height:130px">${e.detail||''}</textarea></div></div>
+    <div class="modal-acts"><button class="btn-s" id="cancelBtn">キャンセル</button><button class="btn-p" id="saveBtn">${isEdit?'更新':'保存'}</button></div>
+  </div></div>`;
+  renderTagEditor(document.getElementById('tagEditorWrap'));
+  const dz=document.getElementById('dropZone'),fi=document.getElementById('flyerInput');
+  fi.addEventListener('change',()=>{if(fi.files.length)addFlyerFiles(Array.from(fi.files));});
+  dz.addEventListener('dragover',ev=>{ev.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',ev=>{ev.preventDefault();dz.classList.remove('drag-over');if(ev.dataTransfer.files.length)addFlyerFiles(Array.from(ev.dataTransfer.files));});
+  document.getElementById('cancelBtn').addEventListener('click',closeModal);
+  document.getElementById('modalBg').addEventListener('click',ev=>{if(ev.target.id==='modalBg')closeModal();});
+  document.getElementById('saveBtn').addEventListener('click',saveEvent);
+}
+
+async function addFlyerFiles(files){
+  const preview=document.getElementById('flyerPreview');
+  preview.innerHTML=`<i class="ti ti-loader-2" style="font-size:19px;display:block;margin-bottom:3px;animation:spin 1s linear infinite"></i>圧縮中...`;
+  const results=await Promise.all(files.map(f=>compressImage(f)));
+  flyerDataUrls.push(...results.map(r=>r.data));
+  preview.innerHTML=flyerPreviewsHTML();
+}
+
+window.removeFlyer=function(i){
+  flyerDataUrls.splice(i,1);
+  const preview=document.getElementById('flyerPreview');
+  if(preview)preview.innerHTML=flyerPreviewsHTML();
+};
+
+async function saveEvent(){
+  const ev={
+    id:editingId||pendingCopyId||('ev_'+Date.now()),
+    title:document.getElementById('f-title').value.trim(),
+    date:document.getElementById('f-date').value,
+    venue:document.getElementById('f-venue').value.trim(),
+    openH:+document.getElementById('f-openH').value,
+    openM:+document.getElementById('f-openM').value,
+    startH:+document.getElementById('f-startH').value,
+    startM:+document.getElementById('f-startM').value,
+    ticket:document.getElementById('f-ticket').value.trim(),
+    tags:[...draftTags],
+    flyer:flyerDataUrls.length?flyerDataUrls:null,
+    detail:document.getElementById('f-detail').value.trim(),
+  };
+  closeModal();pendingCopyId=null;isCopyMode=false;if(ev.date)selectedDate=ev.date;
+  await saveEventToDb(ev);showToast('保存しました！');
+}
+
+function copyEvent(id){
+  const e=events.find(x=>x.id===id);if(!e)return;
+  const newId='ev_'+Date.now();
+  const copy={...e,id:newId,title:e.title+' (コピー)'};
+  editingId=null;
+  pendingCopyId=newId;
+  isCopyMode=true;
+  flyerDataUrls=[...getFlyerImages(copy)];
+  draftTags=[...(copy.tags||[])];
+  renderModal(copy);
+  setTimeout(()=>{const t=document.getElementById('f-title');if(t){t.focus();t.select();}},100);
+  showToast('コピーしました！内容を編集して保存してください');
+}
+window.copyEvent=copyEvent;
+
+// タグ色一括リセット
+window.resetAllTagColors=async function(){
+  if(!confirm('全イベントのタグ色をリセットしますか？\n同じタグ名は同じ色に統一されます。'))return;
+  const tagMap={};let colorIdx=0;
+  events.forEach(e=>(e.tags||[]).forEach(t=>{
+    if(!tagMap[t.name]){
+      const preset=PRESET_TAGS.find(p=>p.name===t.name);
+      tagMap[t.name]=preset?{bg:preset.bg,text:preset.text}:TAG_COLORS[colorIdx++%TAG_COLORS.length];
+    }
+  }));
+  const batch=[];
+  events.forEach(e=>{
+    if(!(e.tags&&e.tags.length))return;
+    const newTags=e.tags.map(t=>({name:t.name,bg:tagMap[t.name].bg,text:tagMap[t.name].text}));
+    e.tags=newTags;
+    batch.push(setDoc(doc(db,'events',e.id),e));
+  });
+  await Promise.all(batch);
+  showToast('タグ色をリセットしました！');
+  buildCalendar();renderPanel();renderMobile();
+};
+
+window.deleteEvent=async function(id){
+  if(!confirm('このイベントを削除しますか？'))return;
+  closeModal();await deleteEventFromDb(id);
+};
+
+function closeModal(){document.getElementById('modalContainer').innerHTML='';flyerDataUrls=[];editingId=null;}
+window.closeModal=closeModal;
+
+document.getElementById('prevBtn').addEventListener('click',()=>{currentDate.setMonth(currentDate.getMonth()-1);mainPickerOpen=false;renderMainPicker();});
+document.getElementById('nextBtn').addEventListener('click',()=>{currentDate.setMonth(currentDate.getMonth()+1);mainPickerOpen=false;renderMainPicker();});
+document.getElementById('addBtn').addEventListener('click',()=>openAddModal());
+document.getElementById('mprevBtn').addEventListener('click',()=>{mobileDate.setMonth(mobileDate.getMonth()-1);mainPickerOpen=false;renderMainPicker();renderMobile();});
+document.getElementById('mnextBtn').addEventListener('click',()=>{mobileDate.setMonth(mobileDate.getMonth()+1);mainPickerOpen=false;renderMainPicker();renderMobile();});
+document.getElementById('mobAddBtn').addEventListener('click',()=>openAddModal());
+
+// スマホ用カレンダーオーバーレイ
+let mobCalDate=new Date();
+let mobCalSelected=null;
+let mobCalPickerOpen=false;
+
+function buildMobCal(){
+  // ③ ピッカー表示中はカレンダー再描画しない（スクロール干渉防止）
+  if(mobCalPickerOpen)return;
+  const grid=document.getElementById('mobCalGrid');
+  if(!grid)return;
+  const y=mobCalDate.getFullYear(),m=mobCalDate.getMonth();
+  const navEl=document.getElementById('mobCalNav');
+  if(navEl){
+    navEl.innerHTML=`<button class="icon-btn" onclick="mobCalMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <button onclick="toggleMobCalPicker()" style="background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:14px;font-weight:700;color:var(--text);padding:4px 8px;border-radius:var(--radius-sm)">${y}年${m+1}月 <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text2)"></i></button>
+      <button class="icon-btn" onclick="mobCalMonth(1)"><i class="ti ti-chevron-right"></i></button>`;
+  }
+  const td=todayStr();
+  const first=new Date(y,m,1).getDay();
+  const last=new Date(y,m+1,0).getDate();
+  const prevLast=new Date(y,m,0).getDate();
+
+  let html=`<div style="display:grid;grid-template-columns:repeat(7,1fr);margin-bottom:2px">
+    ${['日','月','火','水','木','金','土'].map((d,i)=>`<div style="text-align:center;font-size:10px;font-weight:600;color:${i===0?'#e8547a':i===6?'#4a9fd4':'var(--text2)'};padding:3px 0">${d}</div>`).join('')}
+  </div>`;
+
+  html+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px">`;
+  let day=1,nextDay=1;
+  for(let i=0;i<42;i++){
+    let dNum,dateStr='',isOther=false;
+    if(i<first){dNum=prevLast-first+i+1;isOther=true;}
+    else if(day>last){dNum=nextDay++;isOther=true;}
+    else{
+      dNum=day;
+      const mm=String(m+1).padStart(2,'0'),dd=String(day).padStart(2,'0');
+      dateStr=`${y}-${mm}-${dd}`;
+      day++;
+    }
+    const isToday=dateStr===td;
+    const isSel=dateStr===mobCalSelected;
+    const dow=i%7;
+    const evs=dateStr?events.filter(e=>e.date===dateStr):[];
+    const filtEvs=activeTagFilter?evs.filter(e=>(e.tags||[]).some(t=>t.name===activeTagFilter)):evs;
+    const numColor=isOther?'var(--border)':dow===0?'#e8547a':dow===6?'#4a9fd4':'var(--text)';
+    const numStyle=isToday
+      ?'color:#fff;background:var(--dot);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:12px'
+      :`color:${numColor};font-size:12px;text-align:center`;
+    const cellBg=isSel?'var(--accent-light)':'transparent';
+    const cellBorder=isSel?'var(--dot)':'transparent';
+    const chips=filtEvs.length?`<div style="display:flex;flex-direction:column;gap:2px;margin-top:3px">${filtEvs.slice(0,3).map(e=>{
+      const bg=e.tags&&e.tags.length?e.tags[0].bg:'var(--dot)';
+      const tc=e.tags&&e.tags.length?e.tags[0].text:'#fff';
+      const label=(e.title||'').slice(0,5);
+      return `<div style="background:${bg};color:${tc};font-size:8.5px;font-weight:600;border-radius:20px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.3">${label}</div>`;
+    }).join('')}${filtEvs.length>3?`<div style="font-size:8px;color:var(--text2);text-align:center;padding:1px 0">+${filtEvs.length-3}</div>`:''}</div>`:'';
+    html+=`<div style="padding:4px 2px 5px;border-radius:8px;cursor:${dateStr?'pointer':'default'};background:${cellBg};border:1.5px solid ${cellBorder};min-height:58px"
+      ${dateStr?`onclick="mobCalSelect('${dateStr}')"`:''}>
+      <div style="${numStyle}${isToday?'':';font-weight:600'}">${dNum}</div>
+      ${chips}
+    </div>`;
+    if(day>last+1&&i>=34&&i%7===6)break;
+  }
+  html+=`</div>`;
+  grid.innerHTML=html;
+}
+
+window.toggleMobCalPicker=function(){
+  mobCalPickerOpen=!mobCalPickerOpen;
+  renderMobCalPicker();
+};
+window.mobCalSetYear=function(yr){
+  mobCalDate=new Date(yr,mobCalDate.getMonth(),1);
+  renderMobCalPicker();
+};
+window.mobCalSetMonth=function(mo){
+  mobCalDate=new Date(mobCalDate.getFullYear(),mo,1);
+  mobCalPickerOpen=false;
+  renderMobCalPicker();
+  buildMobCal();
+};
+window.mobCalMonth=function(dir){
+  mobCalDate=new Date(mobCalDate.getFullYear(),mobCalDate.getMonth()+dir,1);
+  mobCalPickerOpen=false;
+  renderMobCalPicker();
+  buildMobCal();
+};
+
+// ② ④ カレンダータブのピッカー：幅280px固定・ボタン直下にfixed浮き上がり
+function renderMobCalPicker(){
+  const y=mobCalDate.getFullYear(),m=mobCalDate.getMonth();
+  const cpWrap=document.getElementById('mobCalPickerWrap');
+  if(!cpWrap)return;
+  if(mobCalPickerOpen){
+    const curY=new Date().getFullYear();
+    const years=[curY-1,curY,curY+1,curY+2];
+    cpWrap.innerHTML=`<div class="main-picker-popup">
+      <div class="picker-years">
+        ${years.map(yr=>`<button class="picker-year-btn${yr===y?' sel':''}" onclick="mobCalSetYear(${yr})">${yr}</button>`).join('')}
+      </div>
+      <div class="picker-months">
+        ${Array.from({length:12},(_,i)=>`<button class="picker-month-btn${i===m?' sel':''}" onclick="mobCalSetMonth(${i})">${i+1}</button>`).join('')}
+      </div>
+    </div>`;
+    // ボタン直下に固定表示・幅280px・画面端補正
+    const btn=document.getElementById('mobCalNav')?.querySelector('button:nth-child(2)');
+    if(btn){
+      const r=btn.getBoundingClientRect();
+      const pickerW=280;
+      let left=r.left+r.width/2-pickerW/2;
+      left=Math.max(8,Math.min(left,window.innerWidth-pickerW-8));
+      cpWrap.style.top=(r.bottom+6)+'px';
+      cpWrap.style.left=left+'px';
+    }
+    cpWrap.style.display='block';
+    if(!document.querySelector('.mob-cal-picker-overlay')){
+      const bg=document.createElement('div');
+      bg.className='mob-cal-picker-overlay picker-overlay-bg';
+      bg.addEventListener('click',()=>{mobCalPickerOpen=false;renderMobCalPicker();});
+      document.body.appendChild(bg);
+    }
+  } else {
+    cpWrap.style.display='none';
+    document.querySelectorAll('.mob-cal-picker-overlay').forEach(el=>el.remove());
+  }
+}
+
+window.mobCalSelect=function(dateStr){
+  mobCalSelected=dateStr;
+  buildMobCal();
+  const[y,mo,d]=dateStr.split('-');
+  const title=document.getElementById('mobCalPanelTitle');
+  const list=document.getElementById('mobCalEventList');
+  if(title)title.textContent=`${parseInt(y)}年${parseInt(mo)}月${parseInt(d)}日`;
+  let evs=events.filter(e=>e.date===dateStr);
+  if(activeTagFilter)evs=evs.filter(e=>(e.tags||[]).some(t=>t.name===activeTagFilter));
+  if(list){
+    if(evs.length){
+      list.innerHTML=`<div style="display:flex;flex-direction:column;gap:0">${evs.map(e=>mobCardHTML(e)).join('')}</div>`;
+    } else {
+      list.innerHTML=`<div class="empty"><i class="ti ti-calendar-off" style="font-size:22px;display:block;margin-bottom:6px"></i>イベントなし</div>`;
+    }
+  }
+};
+
+document.getElementById('mobCalBtn').addEventListener('click',()=>{
+  const ov=document.getElementById('mobCalOverlay');
+  mobCalDate=new Date();
+  buildMobCal();
+  ov.classList.add('open');
+});
+
+// ─── テーマカラー ───
+const THEME_COLORS=[
+  {cls:'',bg:'#F4F6FA',title:'デフォルト'},
+  {cls:'theme-pink',bg:'#FDF0F3',title:'ピンク'},
+  {cls:'theme-mint',bg:'#E9F7EF',title:'ミント'},
+  {cls:'theme-lavender',bg:'#EDEAFF',title:'ラベンダー'},
+  {cls:'theme-peach',bg:'#FFF0E6',title:'ピーチ'},
+  {cls:'theme-sky',bg:'#E8F2FF',title:'スカイ'},
+];
+function buildColorSwatches(){
+  const html=THEME_COLORS.map(t=>`<button onclick="setThemeColor('${t.cls}')" class="color-swatch${currentThemeColor===t.cls?' active':''}" style="background:${t.bg}" title="${t.title}"></button>`).join('');
+  const desk=document.getElementById('colorSwatchesDesk');if(desk)desk.innerHTML=html;
+  const mob=document.getElementById('colorSwatchesMob');if(mob)mob.innerHTML=html;
+}
+let currentThemeColor='';
+window.setThemeColor=function(cls){
+  const body=document.body;
+  THEME_COLORS.forEach(t=>{if(t.cls)body.classList.remove(t.cls);});
+  if(cls)body.classList.add(cls);
+  currentThemeColor=cls;
+  buildColorSwatches();
+  const cpw=document.getElementById('colorPickerWrap');if(cpw)cpw.style.display='none';
+  const cpp=document.getElementById('colorPickerPopup');if(cpp)cpp.style.display='none';
+};
+window.toggleColorPicker=function(ev){
+  if(window.innerWidth>540){
+    const popup=document.getElementById('colorPickerPopup');
+    if(!popup)return;
+    const isOpen=popup.style.display!=='none';
+    popup.style.display=isOpen?'none':'block';
+    if(!isOpen){
+      setTimeout(()=>{
+        const close=function(e){if(!popup.contains(e.target)&&e.target!==ev.currentTarget){popup.style.display='none';document.removeEventListener('click',close);}};
+        document.addEventListener('click',close);
+      },0);
+    }
+  } else {
+    const cpw=document.getElementById('colorPickerWrap');
+    if(!cpw)return;
+    cpw.style.display=cpw.style.display==='none'?'block':'none';
+  }
+};
+
+// ─── 共通 年月ラベル更新 ───
+let mainPickerOpen=false;
+function updateMainLabel(type,y,m){
+  const arrow=mainPickerOpen?'ti-chevron-up':'ti-chevron-down';
+  const lbl=`${y}年 ${m+1}月 <i class="ti ${arrow}" style="font-size:11px;color:var(--text2)"></i>`;
+  if(type==='main'){const el=document.getElementById('monthLabel');if(el)el.innerHTML=lbl;}
+  else{const el=document.getElementById('mmonthLabel');if(el)el.innerHTML=lbl;}
+}
+
+// ─── ② ③ ④ メインピッカー（イベントリストタブ用）───
+// position:fixed・幅280px固定・ボタン直下に浮き上がり表示
+window.toggleMainPicker=function(){
+  mainPickerOpen=!mainPickerOpen;
+  renderMainPicker();
+};
+function closeMainPicker(){
+  mainPickerOpen=false;
+  const wm=document.getElementById('mainPickerWrap');
+  const wd=document.getElementById('mainPickerWrapDesk');
+  if(wm)wm.style.display='none';
+  if(wd)wd.style.display='none';
+  document.querySelectorAll('.picker-overlay-bg').forEach(el=>el.remove());
+  // ピッカーを閉じてから描画（③ 干渉防止）
+  buildCalendar();renderMobile();
+}
+function renderMainPicker(){
+  const isMob=window.innerWidth<=540;
+  const wrap=isMob?document.getElementById('mainPickerWrap'):document.getElementById('mainPickerWrapDesk');
+  if(!wrap)return;
+  if(!mainPickerOpen){
+    wrap.style.display='none';
+    document.querySelectorAll('.picker-overlay-bg').forEach(el=>el.remove());
+    // ③ ピッカーを閉じてから描画（スクロール干渉防止）
+    buildCalendar();renderMobile();
+    return;
+  }
+  const date=isMob?mobileDate:currentDate;
+  const y=date.getFullYear(),m=date.getMonth();
+  const curY=new Date().getFullYear();
+  const years=[curY-1,curY,curY+1,curY+2];
+  wrap.innerHTML=`<div class="main-picker-popup">
+    <div class="picker-years">
+      ${years.map(yr=>`<button class="picker-year-btn${yr===y?' sel':''}" onclick="mainPickerSetYear(${yr})">${yr}</button>`).join('')}
+    </div>
+    <div class="picker-months">
+      ${Array.from({length:12},(_,i)=>`<button class="picker-month-btn${i===m?' sel':''}" onclick="mainPickerSetMonth(${i})">${i+1}</button>`).join('')}
+    </div>
+  </div>`;
+  // ② ④ スマホ：ボタン直下・幅280px固定・画面端補正（全タブ共通ロジック）
+  if(isMob){
+    const btn=document.getElementById('mmonthLabel');
+    if(btn){
+      const r=btn.getBoundingClientRect();
+      const pickerW=280;
+      let left=r.left+r.width/2-pickerW/2;
+      left=Math.max(8,Math.min(left,window.innerWidth-pickerW-8));
+      wrap.style.top=(r.bottom+6)+'px';
+      wrap.style.left=left+'px';
+    }
+  }
+  wrap.style.display='block';
+  if(!document.querySelector('.picker-overlay-bg')){
+    const bg=document.createElement('div');
+    bg.className='picker-overlay-bg';
+    bg.addEventListener('click',closeMainPicker);
+    document.body.appendChild(bg);
+  }
+}
+window.mainPickerSetYear=function(yr){
+  const isMob=window.innerWidth<=540;
+  if(isMob)mobileDate=new Date(yr,mobileDate.getMonth(),1);
+  else currentDate=new Date(yr,currentDate.getMonth(),1);
+  renderMainPicker();
+};
+window.mainPickerSetMonth=function(mo){
+  const isMob=window.innerWidth<=540;
+  if(isMob)mobileDate=new Date(mobileDate.getFullYear(),mo,1);
+  else currentDate=new Date(currentDate.getFullYear(),mo,1);
+  mainPickerOpen=false;
+  renderMainPicker();
+};
+
+// ─── スマホタブ切り替え ───
+let mobActiveTab='schedule';
+window.switchMobTab=function(tab){
+  mobActiveTab=tab;
+  document.getElementById('tabSchedule').classList.toggle('active',tab==='schedule');
+  document.getElementById('tabCal').classList.toggle('active',tab==='cal');
+  const mv=document.getElementById('mobileView');
+  const ov=document.getElementById('mobCalOverlay');
+  const mobnav=document.getElementById('mobNav')||document.querySelector('.mob-nav');
+  if(tab==='cal'){
+    mv.style.display='none';
+    if(mobnav)mobnav.style.display='none';
+    ov.classList.add('open');
+    mobCalDate=new Date(mobileDate.getFullYear(),mobileDate.getMonth(),1);
+    mobCalPickerOpen=false;
+    buildMobCal();
+  } else {
+    mv.style.display='';
+    if(mobnav)mobnav.style.display='';
+    ov.classList.remove('open');
+  }
+};
+
+// ─── 初期化 ───
+applyTheme(currentTheme);
+buildDD('themeDD');
+buildDD('mthemeDD');
+buildColorSwatches();
+buildCalendar();
+renderPanel();
+renderMobile();
+// ─── /初期化 ───
+
+// iOSキーボード閉じた後に画面位置を元に戻す
+(function(){
+  let lastScrollY=0;
+  document.addEventListener('focusin',function(e){
+    if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT'){
+      lastScrollY=window.scrollY;
+    }
+  });
+  document.addEventListener('focusout',function(e){
+    if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT'){
+      setTimeout(function(){
+        window.scrollTo({top:lastScrollY,behavior:'instant'});
+      },150);
+    }
+  });
+})();
+</script>
+</body>
+</html>
